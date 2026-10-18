@@ -2,166 +2,211 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Skate 3 - Super Ultra Mega Ramp Local</title>
+    <title>Skate 3 - Mega Ramp Sandbox</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #0a0b10; font-family: sans-serif; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #07080c; font-family: sans-serif; user-select: none; }
         #u { position: absolute; top: 20px; left: 20px; color: #fff; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 6px; border: 1px solid #00ffcc; z-index: 10; pointer-events: none; }
-        h1 { margin: 0 0 5px 0; font-size: 16px; color: #00ffcc; }
+        h1 { margin: 0 0 5px 0; font-size: 16px; color: #00ffcc; letter-spacing: 1px; }
         .hint { font-size: 12px; color: #ccc; margin: 3px 0; }
         #t { position: absolute; bottom: 40px; width: 100%; text-align: center; color: #00ffcc; font-size: 44px; font-weight: 900; letter-spacing: 2px; pointer-events: none; }
-        #speed-om { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 20px; border: 1px solid #00ffcc; z-index: 10; }
+        #speed { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 20px; border: 1px solid #00ffcc; }
     </style>
-    <!-- LOAD BUNDLED ENGINE DIRECTLY FROM YOUR LOCAL REPOSITORY FILES -->
-    <script src="three.js"></script>
 </head>
 <body>
-    <div id="ui">
-        <h1>SUPER ULTRA MEGA RAMP v4.5</h1>
+    <div id="u">
+        <h1>SUPER ULTRA MEGA RAMP v5.0</h1>
         <div class="hint">⌨️ STEER: A / D Keys</div>
-        <div class="hint">留下 PUSH: W Key or Spacebar</div>
+        <div class="hint">🛹 PUSH: W Key or Spacebar</div>
         <div class="hint">🎯 FLIP TRICKS: Keyboard Arrow Keys</div>
-        <div class="hint">🔄 RESET: Press 'R' to drop in from the tower</div>
+        <div class="hint">🔄 RESET: Press 'R' to respawn at the top</div>
     </div>
-    <div id="speed-om"><span id="speed-val">0</span> MPH</div>
+    <div id="speed"><span id="sp-val">0</span> MPH</div>
     <div id="t">DROP IN!</div>
 
+    <canvas id="gameCanvas"></canvas>
+
     <script>
-        window.onload = () => {
-            const s = new THREE.Scene(); 
-            s.background = new THREE.Color(0x0a0b10);
-            
-            const c = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 3000);
-            const r = new THREE.WebGLRenderer({ antialias: true }); 
-            r.setSize(window.innerWidth, window.innerHeight); 
-            document.body.appendChild(r.domElement);
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
 
-            const grid = new THREE.GridHelper(2000, 100, 0x00ffcc, 0x222630);
-            grid.position.y = -40;
-            s.add(grid);
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener("resize", resize);
+        resize();
 
-            const mFloor = new THREE.MeshBasicMaterial({ color: 0x1f232b });
-            const mRamp = new THREE.MeshBasicMaterial({ color: 0x2e3440 });
-            const mNeon = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
-
-            function bSeg(w, h, d, x, y, z, rx, mat) { 
-                const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); 
-                m.position.set(x, y, z); m.rotation.x = rx; 
-                s.add(m); 
-            }
-
-            bSeg(45, 2, 60, 0, 70, -110, 0, mFloor); 
-            bSeg(45, 2, 160, 0, 35, 0, 0.45, mRamp); 
-            bSeg(45, 2, 80, 0, 0, 110, 0, mFloor); 
-            bSeg(45, 2, 40, 0, 4, 165, -0.25, mRamp);
-            bSeg(45, 0.6, 2, 0, 9, 185, 0, mNeon); 
-            bSeg(50, 2, 110, 0, -5, 315, 0.15, mRamp); 
-            bSeg(50, 2, 100, 0, -12, 410, 0, mFloor); 
-            bSeg(50, 2, 65, 0, 3, 485, -0.75, mRamp);
-
-            const p = new THREE.Vector3(0, 72, -110);
-            const v = new THREE.Vector3();
-            const keys = { w:0, a:0, d:0, space:0, ArrowUp:0, ArrowDown:0, ArrowLeft:0, ArrowRight:0 };
-            
-            let rotY = 0, rotZ = 0, gr = 1, cool = 0;
-            let stY = 0, stX = 0, pStY = 0, pStX = 0;
-
-            const bg = new THREE.Group();
-            const dk = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 3.6), new THREE.MeshBasicMaterial({ color: 0xe11d48 })); 
-            bg.add(dk); 
-            s.add(bg);
-
-            c.position.set(0, 77.5, -122);
-
-            window.onkeydown = (e) => {
-                if (e.key === ' ') keys.space = 1;
-                else if (e.key in keys) keys[e.key] = 1;
-                else if (e.key.toLowerCase() === 'w') keys.w = 1;
-                else if (e.key.toLowerCase() === 'a') keys.a = 1;
-                else if (e.key.toLowerCase() === 'd') keys.d = 1;
-                else if (e.key.toLowerCase() === 'r') { 
-                    p.set(0, 72, -110); v.set(0, 0, 0); rotY = 0; gr = 1; 
-                    document.getElementById('t').innerText = "DROP IN!"; 
-                }
-            };
-
-            window.onkeyup = (e) => {
-                if (e.key === ' ') keys.space = 0;
-                else if (e.key in keys) keys[e.key] = 0;
-                else if (e.key.toLowerCase() === 'w') keys.w = 0;
-                else if (e.key.toLowerCase() === 'a') keys.a = 0;
-                else if (e.key.toLowerCase() === 'd') keys.d = 0;
-            };
-
-            function getH(x, z) {
-                if (Math.abs(x) > 28) return -50; 
-                if (z >= -150 && z < -80) return 71;
-                if (z >= -80 && z < 70) return 71 - (((z + 80) / 150) * 71); 
-                if (z >= 70 && z < 145) return 0;
-                if (z >= 145 && z < 185) return ((z - 145) / 40) * 9; 
-                if (z >= 185 && z < 260) return -50;
-                if (z >= 260 && z < 360) return 2.5 - (((z - 260) / 100) * 14.5); 
-                if (z >= 360 && z < 450) return -12;
-                if (z >= 450 && z < 495) return -12 + (((z - 450) / 45) * 28); 
-                return -50;
-            }
-
-            function tk() {
-                requestAnimationFrame(tk);
-                let cl = keys.w || keys.space;
-                let str = keys.a ? -1 : (keys.d ? 1 : 0);
-
-                pStY = stY; pStX = stX;
-                stY = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0);
-                stX = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
-
-                if (gr) {
-                    if (pStY > 0.2 && stY < -0.2) { v.y = 16; gr = 0; document.getElementById('t').innerText = "OLLIE"; }
-                    else if (pStX > -0.2 && stX < -0.4) { v.y = 13; gr = 0; rotZ = 32; document.getElementById('t').innerText = "KICKFLIP"; }
-                    else if (pStX < 0.2 && stX > 0.4) { v.y = 13; gr = 0; rotZ = -32; document.getElementById('t').innerText = "HEELFLIP"; }
-                }
-
-                rotY -= str * 0.04;
-                const hd = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-                
-                if (cl && gr && cool <= 0) { v.addScaledVector(hd, 1.5); cool = 20; }
-                if (cool > 0) cool--;
-
-                if (gr && p.z > -80 && p.z < 70) v.z += 0.38;
-
-                v.x -= v.x * (gr ? 0.02 : 0.005);
-                v.z -= v.z * (gr ? 0.02 : 0.005);
-                if (!gr) v.y -= 0.35;
-
-                p.add(v);
-                const h = getH(p.x, p.z);
-
-                if (p.y <= h) { p.y = h; v.y = 0; gr = 1; rotZ *= 0.1; }
-                else if (p.y > h + 0.15) gr = 0;
-
-                if (!gr && Math.abs(rotZ) > 0.1) dk.rotation.z += rotZ * 0.016;
-                else dk.rotation.z = 0;
-
-                bg.position.copy(p); 
-                bg.rotation.y = rotY;
-
-                const speedCalculated = Math.floor(v.length() * 2.4);
-                document.getElementById('speed-val').innerText = speedCalculated;
-
-                const o = new THREE.Vector3(0, 5.5, -12).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
-                c.position.lerp(p.clone().add(o), 0.1);
-                c.lookAt(p.clone().add(new THREE.Vector3(0, 0.6, 3)));
-
-                r.render(s, c);
-            }
-            
-            tk();
-
-            window.onresize = () => { 
-                c.aspect = window.innerWidth / window.innerHeight; 
-                c.updateProjectionMatrix(); 
-                r.setSize(window.innerWidth, window.innerHeight); 
-            };
+        // Skater positioning and momentum state tracking
+        const skater = {
+            x: 0, y: 71, z: -110,
+            vx: 0, vy: 0, vz: 0,
+            angleY: 0, flipRot: 0,
+            isGrounded: true, pushCool: 0
         };
+
+        const keys = { w:0, a:0, d:0, space:0, ArrowUp:0, ArrowDown:0, ArrowLeft:0, ArrowRight:0 };
+        let arrowY = 0, arrowX = 0, pArrowY = 0, pArrowX = 0;
+
+        window.onkeydown = (e) => {
+            if (e.key === ' ') keys.space = 1;
+            else if (e.key in keys) keys[e.key] = 1;
+            else if (e.key.toLowerCase() === 'w') keys.w = 1;
+            else if (e.key.toLowerCase() === 'a') keys.a = 1;
+            else if (e.key.toLowerCase() === 'd') keys.d = 1;
+            else if (e.key.toLowerCase() === 'r') reset();
+        };
+
+        window.onkeyup = (e) => {
+            if (e.key === ' ') keys.space = 0;
+            else if (e.key in keys) keys[e.key] = 0;
+            else if (e.key.toLowerCase() === 'w') keys.w = 0;
+            else if (e.key.toLowerCase() === 'a') keys.a = 0;
+            else if (e.key.toLowerCase() === 'd') keys.d = 0;
+        };
+
+        function reset() {
+            skater.x = 0; skater.y = 71; skater.z = -110;
+            skater.vx = 0; skater.vy = 0; skater.vz = 0;
+            skater.angleY = 0; skater.flipRot = 0; skater.isGrounded = true;
+            document.getElementById("t").innerText = "DROP IN!";
+        }
+
+        // Height Map tracking coordinates for the map
+        function getTrackHeight(x, z) {
+            if (Math.abs(x) > 26) return -50; 
+            if (z >= -150 && z < -80) return 71; 
+            if (z >= -80 && z < 70) return 71 - (((z + 80) / 150) * 71); // Massive Roll-In Hill
+            if (z >= 70 && z < 145) return 0; // Flat Runway
+            if (z >= 145 && z < 185) return ((z - 145) / 40) * 9; // Kicker Ramp
+            if (z >= 185 && z < 260) return -50; // Mega Gap Void
+            if (z >= 260 && z < 360) return 2.5 - (((z - 260) / 100) * 14.5); // Landing Box
+            if (z >= 360 && z < 450) return -12; 
+            if (z >= 450 && z < 495) return -12 + (((z - 450) / 45) * 28); // Quarterpipe Wall
+            return -50;
+        }
+
+        // Mathematical projection engine mapping raw space vectors down onto 2D screens
+        function project3D(x, y, z, rotY) {
+            let cx = x - skater.x;
+            let cy = y - (skater.y + 4.5);
+            let cz = z - (skater.z - 10);
+
+            let cos = Math.cos(-rotY);
+            let sin = Math.sin(-rotY);
+            let rx = cx * cos - cz * sin;
+            let rz = cx * sin + cz * cos;
+
+            if (rz <= 1) return null; 
+
+            let fov = 400; 
+            return {
+                x: (canvas.width / 2) + (rx * fov) / rz,
+                y: (canvas.height / 2) - (cy * fov) / rz,
+                scale: fov / rz
+            };
+        }
+
+        function loop() {
+            requestAnimationFrame(loop);
+
+            pArrowY = arrowY; pArrowX = arrowX;
+            arrowY = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0);
+            arrowX = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
+
+            // Flick Trick Recognition Engine
+            if (skater.isGrounded) {
+                if (pArrowY > 0.1 && arrowY < -0.1) { skater.vy = 14; skater.isGrounded = false; document.getElementById("t").innerText = "MEGA OLLIE"; }
+                else if (pArrowX > -0.1 && arrowX < -0.4) { skater.vy = 11; skater.isGrounded = false; skater.flipRot = 35; document.getElementById("t").innerText = "KICKFLIP"; }
+                else if (pArrowX < 0.1 && arrowX > 0.4) { skater.vy = 11; skater.isGrounded = false; skater.flipRot = -35; document.getElementById("t").innerText = "HEELFLIP"; }
+            }
+
+            let steer = keys.a ? -1 : (keys.d ? 1 : 0);
+            skater.angleY -= steer * 0.035;
+
+            let headingX = Math.sin(skater.angleY);
+            let headingZ = Math.cos(skater.angleY);
+
+            if ((keys.w || keys.space) && skater.isGrounded && skater.pushCool <= 0) {
+                skater.vx += headingX * 4;
+                skater.vz += headingZ * 4;
+                skater.pushCool = 25;
+            }
+            if (skater.pushCool > 0) skater.pushCool--;
+
+            // Downhill gravity acceleration tracking
+            if (skater.isGrounded && skater.z > -80 && skater.z < 70) {
+                skater.vz += 0.42; 
+            }
+
+            let fCoeff = skater.isGrounded ? 0.98 : 0.995;
+            skater.vx *= fCoeff;
+            skater.vz *= fCoeff;
+
+            if (!skater.isGrounded) skater.vy -= 0.35; 
+
+            skater.x += skater.vx * 0.16;
+            skater.y += skater.vy * 0.16;
+            skater.z += skater.vz * 0.16;
+
+            let floorY = getTrackHeight(skater.x, skater.z);
+            if (skater.y <= floorY) {
+                skater.y = floorY;
+                skater.vy = 0;
+                skater.isGrounded = true;
+                skater.flipRot = 0;
+            } else if (skater.y > floorY + 0.2) {
+                skater.isGrounded = false;
+            }
+
+            let mph = Math.floor(Math.abs(skater.vz) * 2.2);
+            document.getElementById("sp-val").innerText = mph;
+
+            // --- DRAW ENGINE ---
+            ctx.fillStyle = "#07080c";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw track grid boundaries
+            ctx.strokeStyle = "rgba(0, 255, 204, 0.25)";
+            ctx.lineWidth = 1.5;
+
+            for (let z = -130; z <= 500; z += 12) {
+                let leftP = project3D(-25, getTrackHeight(-25, z), z, skater.angleY);
+                let rightP = project3D(25, getTrackHeight(25, z), z, skater.angleY);
+
+                if (leftP && rightP && getTrackHeight(0, z) > -45) {
+                    ctx.beginPath();
+                    ctx.moveTo(leftP.x, leftP.y);
+                    ctx.lineTo(rightP.x, rightP.y);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Skateboard model box
+            let sProj = project3D(skater.x, skater.y + 0.1, skater.z, skater.angleY);
+            if (sProj) {
+                ctx.save();
+                ctx.translate(sProj.x, sProj.y);
+                if (!skater.isGrounded) {
+                    ctx.rotate(Math.sin(Date.now() * 0.015) * skater.flipRot * 0.03);
+                }
+                
+                // Red Deck base plate
+                ctx.fillStyle = "#e11d48";
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(-24 * sProj.scale * 0.012, -8 * sProj.scale * 0.012, 48 * sProj.scale * 0.012, 16 * sProj.scale * 0.012);
+                ctx.fill();
+                ctx.stroke();
+
+                // Grip tape insert
+                ctx.fillStyle = "#181a21";
+                ctx.fillRect(-20 * sProj.scale * 0.012, -6 * sProj.scale * 0.012, 40 * sProj.scale * 0.012, 12 * sProj.scale * 0.012);
+                ctx.restore();
+            }
+        }
+
+        loop();
     </script>
 </body>
 </html>
