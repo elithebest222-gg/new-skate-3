@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skate 3 WebGPU Browser Prototype</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0b0b0d;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+        }
+        #ui {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            color: #ffffff;
+            pointer-events: none;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 15px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 { margin: 0 0 10px 0; font-size: 20px; letter-spacing: 1px; color: #00ffcc; }
+        .hint { font-size: 13px; color: #ccc; margin: 4px 0; }
+        #trick-display {
+            position: absolute;
+            bottom: 50px;
+            width: 100%;
+            text-align: center;
+            color: #00ffcc;
+            font-size: 42px;
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(0,255,204,0.5);
+            pointer-events: none;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        #gpu-status {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            background: #22c55e;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+
+    <!-- Import Maps Polyfill for production web hosting -->
+    <script async src="https://unpkg.com"></script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com",
+          "three/addons/": "https://unpkg.com",
+          "three/nodes": "https://unpkg.com"
+        }
+      }
+    </script>
+</head>
+<body>
+
+    <div id="ui">
+        <h1>SKATE WEBGPU v1.0</h1>
+        <div class="hint">⌨️ STEER: A / D Keys</div>
+        <div class="hint">🛹 PUSH: W Key or Spacebar</div>
+        <div class="hint">🎯 FLICK TRICKS: Arrow Down then Up (Ollie) | Left / Right (Flips)</div>
+        <div class="hint">🎮 CONTROLLER: Connect USB Controller & Flick Right analog stick!</div>
+    </div>
+    <div id="gpu-status">WebGPU Active</div>
+    <div id="trick-display">TAP PUSH TO ROLL</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import WebGPURenderer from 'three/addons/renderers/webgpu/WebGPURenderer.js';
+
+        // --- 1. SETUP HIGH-PERFORMANCE WEBGPU INSTANCE ---
+        if (!navigator.gpu) {
+            document.getElementById('gpu-status').innerText = "WebGPU Unsupported";
+            document.getElementById('gpu-status').style.backgroundColor = "#ef4444";
+        }
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e1013);
+        scene.fog = new THREE.FogExp2(0x0e1013, 0.018);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new WebGPURenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. LIGHTING & ATMOSPHERE ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.4);
+        sunLight.position.set(30, 60, 15);
+        scene.add(sunLight);
+
+        // --- 3. ENVIRONMENT STRUCTURAL ARCHITECTURE ---
+        const groundGeo = new THREE.BoxGeometry(500, 1, 500);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x181a1f, roughness: 0.5 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.position.y = -0.5;
+        scene.add(ground);
+
+        const grid = new THREE.GridHelper(500, 100, 0x00ffcc, 0x22272e);
+        grid.position.y = 0.01;
+        scene.add(grid);
+
+        // Solid Skate Launch Ramp
+        const rampGeo = new THREE.BoxGeometry(16, 5, 24);
+        const rampMat = new THREE.MeshStandardMaterial({ color: 0x252a30, roughness: 0.4 });
+        const ramp = new THREE.Mesh(rampGeo, rampMat);
+        ramp.position.set(0, -1, 40);
+        ramp.rotation.x = -0.22; 
+        scene.add(ramp);
+
+        // --- 4. RIDE MOMENTUM VEHICLE STATE ---
+        const state = {
+            pos: new THREE.Vector3(0, 0, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            rotationY: 0,
+            angleZ: 0,
+            isGrounded: true,
+            pushCooldown: 0
+        };
+
+        // --- 5. SKATEBOARD DECK ACCENTS ---
+        const boardGroup = new THREE.Group();
+        const deck = new THREE.Mesh(
+            new THREE.BoxGeometry(1.2, 0.12, 3.2),
+            new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.2 })
+        );
+        boardGroup.add(deck);
+
+        const tape = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.02, 0.8), new THREE.MeshStandardMaterial({color: 0x1c1e22}));
+        tape.position.set(0, 0.07, 0.8);
+        boardGroup.add(tape);
+        scene.add(boardGroup);
+
+        // --- 6. PLAYER CONTROLS FRAMEWORK ---
+        const keys = { w: false, a: false, d: false, space: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        let stickState = { x: 0, y: 0 };
+        let prevStickState = { x: 0, y: 0 };
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'w') keys.w = true;
+            if (e.key.toLowerCase() === 'a') keys.a = true;
+            if (e.key.toLowerCase() === 'd') keys.d = true;
+            if (e.key === ' ' || e.code === 'Space') keys.space = true;
+            if (e.key in keys) keys[e.key] = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key.toLowerCase() === 'w') keys.w = false;
+            if (e.key.toLowerCase() === 'a') keys.a = false;
+            if (e.key.toLowerCase() === 'd') keys.d = false;
+            if (e.key === ' ' || e.code === 'Space') keys.space = false;
+            if (e.key in keys) keys[e.key] = false;
+        });
+
+        function displayTrickName(name) {
+            document.getElementById('trick-display').innerText = name;
+        }
+
+        // --- 7. FLICK SYSTEM GESTURE ENGINE ---
+        function runTrickEvaluations() {
+            if (!state.isGrounded) return;
+
+            // Ollie Calculation (Stick flick down -> up)
+            if (prevStickState.y > 0.35 && stickState.y < -0.35) {
+                state.velocity.y = 13.5;
+                state.isGrounded = false;
+                displayTrickName("OLLIE");
+            }
+            // Kickflip Calculation (Flick Left)
+            else if (prevStickState.x > -0.2 && stickState.x < -0.55) {
+                state.velocity.y = 11.0;
+                state.isGrounded = false;
+                state.angleZ = 26; 
+                displayTrickName("KICKFLIP");
+            }
+            // Heelflip Calculation (Flick Right)
+            else if (prevStickState.x < 0.2 && stickState.x > 0.55) {
+                state.velocity.y = 11.0;
+                state.isGrounded = false;
+                state.angleZ = -26;
+                displayTrickName("HEELFLIP");
+            }
+        }
+
+        // --- 8. RUNTIME TICK RENDER LOOP ---
+        const clock = new THREE.Clock();
+
+        function tick() {
+            requestAnimationFrame(tick);
+            const dt = Math.min(clock.getDelta(), 0.1);
+
+            let steering = 0;
+            let pushing = keys.w || keys.space;
+
+            prevStickState = { ...stickState };
+
+            // Real-time gamepad API controller tracking loop
+            const gamepads = navigator.getGamepads();
+            if (gamepads && gamepads[0]) {
+                const gp = gamepads[0];
+                if (Math.abs(gp.axes[0]) > 0.1) steering = gp.axes[0]; // Left stick horizontal steering
+                if (gp.buttons[0].pressed) pushing = true;             // Face button bottom (A/Cross) push
+                
+                stickState.x = gp.axes[2]; // Right stick flick processing coordinates
+                stickState.y = gp.axes[3];
+            } else {
+                // Synthesize digital keyboard maps down to faux analog values
+                if (keys.a) steering = -1;
+                if (keys.d) steering = 1;
+                stickState.y = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0);
+                stickState.x = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
+            }
+
+            runTrickEvaluations();
+
+            // Handle Board Steering
+            state.rotationY -= steering * 2.8 * dt;
+            const heading = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.rotationY);
+
+            // Accelerate velocity vectors when pushing
+            if (pushing && state.isGrounded && state.pushCooldown <= 0) {
+                state.velocity.addScaledVector(heading, 16.5);
+                state.pushCooldown = 0.35; 
+            }
+            if (state.pushCooldown > 0) state.pushCooldown -= dt;
+
+            // Decay momentum velocities using track surface friction parameters
+            const frictionCoefficient = state.isGrounded ? 1.15 : 0.12;
+            state.velocity.x -= state.velocity.x * frictionCoefficient * dt;
+            state.velocity.z -= state.velocity.z * frictionCoefficient * dt;
+
+            if (!state.isGrounded) {
+                state.velocity.y -= 32 * dt; // Apply gravity values during airtime
+            }
+
+            state.pos.addScaledVector(state.velocity, dt);
+
+            // Compute box ramp height metrics dynamically
+            // Real-time gamepad API controller tracking loop
+            const gamepads = navigator.getGamepads();
+            if (gamepads && gamepads[0]) {
+                const gp = gamepads[0];
+                if (Math.abs(gp.axes[0]) > 0.1) steering = gp.axes[0]; // Left stick horizontal steering
+                if (gp.buttons[0].pressed) pushing = true;             // Face button bottom (A/Cross) push
+                
+                stickState.x = gp.axes[2]; // Right stick X flick processing
+                stickState.y = gp.axes[3]; // Right stick Y flick processing
+            } else {
+                // Synthesize digital keyboard maps down to faux analog values
+                if (keys.a) steering = -1;
+                if (keys.d) steering = 1;
+                stickState.y = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0);
+                stickState.x = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
+            }
+
+            runTrickEvaluations();
+
+            // Handle Board Steering
+            state.rotationY -= steering * 2.8 * dt;
+            const heading = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.rotationY);
+
+            // Accelerate velocity vectors when pushing
+            if (pushing && state.isGrounded && state.pushCooldown <= 0) {
+                state.velocity.addScaledVector(heading, 16.5);
+                state.pushCooldown = 0.35; 
+            }
+            if (state.pushCooldown > 0) state.pushCooldown -= dt;
+
+            // Decay momentum velocities using track surface friction parameters
+            const frictionCoefficient = state.isGrounded ? 1.15 : 0.12;
+            state.velocity.x -= state.velocity.x * frictionCoefficient * dt;
+            state.velocity.z -= state.velocity.z * frictionCoefficient * dt;
+
+            if (!state.isGrounded) {
+                state.velocity.y -= 32 * dt; // Apply gravity values during airtime
+            }
+
+            state.pos.addScaledVector(state.velocity, dt);
+
+            // Compute box ramp height metrics dynamically
+            let rampHeight = 0;
+            if (state.pos.z > 28 && state.pos.z < 52 && Math.abs(state.pos.x) < 8) {
+                const slopeDistance = (state.pos.z - 28) / 24;
+                rampHeight = slopeDistance * 5;
+            }
+
+            // Ground interaction boundary collision loops
+            if (state.pos.y <= rampHeight) {
+                state.pos.y = rampHeight;
+                state.velocity.y = 0;
+                state.isGrounded = true;
+                state.angleZ *= 0.1;
+            } else {
+                if (state.pos.y > rampHeight + 0.1) {
+                    state.isGrounded = false;
+                }
+            }
+
+            // Execute rotational animation cycles when airborne
+            if (!state.isGrounded) {
+                if (Math.abs(state.angleZ) > 0.1) {
+                    deck.rotation.z += state.angleZ * dt;
+                }
+            } else {
+                deck.rotation.z = 0;
+            }
+
+            boardGroup.position.copy(state.pos);
+            boardGroup.rotation.y = state.rotationY;
+
+            // --- DECOUPLED DRIFTING CHASE CAMERA FOLLOW MATRIX ---
+            const targetOffset = new THREE.Vector3(0, 4.4, -9.2).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.rotationY);
+            const cameraTargetPos = state.pos.clone().add(targetOffset);
+            camera.position.lerp(cameraTargetPos, 0.08);
+            camera.lookAt(state.pos.clone().add(new THREE.Vector3(0, 0.5, 0)));
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        tick();
