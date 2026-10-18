@@ -1,103 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skate 3 Mega Ramp</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #050508; font-family: sans-serif; user-select: none; }
-        #ui { position: absolute; top: 20px; left: 20px; color: #fff; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px; border: 1px solid #00ffcc; z-index: 10; pointer-events: none; }
-        h1 { margin: 0 0 5px 0; font-size: 16px; color: #00ffcc; }
-        .hint { font-size: 12px; color: #ccc; margin: 3px 0; }
-        #trick-display { position: absolute; bottom: 40px; width: 100%; text-align: center; color: #00ffcc; font-size: 46px; font-weight: 900; text-shadow: 0 0 15px rgba(0,255,204,0.6); pointer-events: none; }
-        #speed-om { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 20px; border: 1px solid #00ffcc; }
-    </style>
-    <script src="https://cloudflare.com"></script>
-</head>
-<body>
-    <div id="ui">
-        <h1>SUPER ULTRA MEGA RAMP v3.0</h1>
-        <div class="hint">⌨️ STEER: A / D | PUSH: W / Spacebar</div>
-        <div class="hint">🎯 FLIP TRICKS: Keyboard Arrow Keys</div>
-        <div class="hint">🔄 RESET MAP: Press 'R' to drop in from tower</div>
-    </div>
-    <div id="speed-om"><span id="speed-val">0</span> MPH</div>
-    <div id="trick-display">DROP IN!</div>
-
-    <script>
-        const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0b10); scene.fog = new THREE.FogExp2(0x0a0b10, 0.005);
-        const camera = new THREE.PerspectiveCamera(65, window.innerWidth/window.innerHeight, 0.1, 3000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.body.appendChild(renderer.domElement);
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(50, 150, 50); scene.add(sun);
-
-        const m1 = new THREE.MeshBasicMaterial({ color: 0x22252c }), m2 = new THREE.MeshBasicMaterial({ color: 0x2e333d }), m3 = new THREE.MeshBasicMaterial({ color: 0x00ffcc }), m4 = new THREE.MeshBasicMaterial({ color: 0xff0055 });
-        function bSeg(w,h,d,x,y,z,rx,mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); m.rotation.x = rx; scene.add(m); }
-
-        bSeg(45,2,60,0,70,-110,0,m1); bSeg(45,2,160,0,35,0,0.45,m2); bSeg(45,2,80,0,0,110,0,m1); bSeg(45,2,40,0,4,165,-0.25,m2);
-        bSeg(45,0.6,2,0,9,185,0,m3); bSeg(50,2,110,0,-5,315,0.15,m2); bSeg(50,0.6,2,0,3.1,260,0,m4); bSeg(50,2,100,0,-12,410,0,m1); bSeg(50,2,65,0,3,485,-0.75,m2);
-        bSeg(3000,1,3000,0,-50,0,0, new THREE.MeshBasicMaterial({ color: 0x050608 }));
-
-        const state = { pos: new THREE.Vector3(0,72,-110), velocity: new THREE.Vector3(0,0,0), rotationY: 0, angleZ: 0, isGrounded: true, pushCooldown: 0 };
-        const boardGroup = new THREE.Group(), deck = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.15,3.5), new THREE.MeshBasicMaterial({ color: 0xe11d48 }));
-        const grip = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.02,1.2), new THREE.MeshBasicMaterial({ color: 0x18191c })); grip.position.set(0,0.09,0.9);
-        boardGroup.add(deck); boardGroup.add(grip); scene.add(boardGroup);
-
-        const keys = { w:0, a:0, d:0, space:0, ArrowUp:0, ArrowDown:0, ArrowLeft:0, ArrowRight:0 };
-        let stickState = { x:0, y:0 }, prevStickState = { x:0, y:0 };
-        window.addEventListener('keydown', (e) => { if(e.key===' ') keys.space=1; else if(e.key in keys) keys[e.key]=1; else if(e.key.toLowerCase()==='w') keys.w=1; else if(e.key.toLowerCase()==='a') keys.a=1; else if(e.key.toLowerCase()==='d') keys.d=1; else if(e.key.toLowerCase()==='r') respawn(); });
-        window.addEventListener('keyup', (e) => { if(e.key===' ') keys.space=0; else if(e.key in keys) keys[e.key]=0; else if(e.key.toLowerCase()==='w') keys.w=0; else if(e.key.toLowerCase()==='a') keys.a=0; else if(e.key.toLowerCase()==='d') keys.d=0; });
-
-        function respawn() { state.pos.set(0,72,-110); state.velocity.set(0,0,0); state.rotationY=0; state.isGrounded=true; document.getElementById('trick-display').innerText="DROP IN!"; }
-        function chTricks() {
-            if (!state.isGrounded) return;
-            if (prevStickState.y > 0.25 && stickState.y < -0.25) { state.velocity.y = 16; state.isGrounded = false; document.getElementById('trick-display').innerText = "MEGA OLLIE"; }
-            else if (prevStickState.x > -0.2 && stickState.x < -0.5) { state.velocity.y = 13; state.isGrounded = false; state.angleZ = 32; document.getElementById('trick-display').innerText = "KICKFLIP"; }
-            else if (prevStickState.x < 0.2 && stickState.x > 0.5) { state.velocity.y = 13; state.isGrounded = false; state.angleZ = -32; document.getElementById('trick-display').innerText = "HEELFLIP"; }
-        }
-
-        function getH(x, z) {
-            if (Math.abs(x) > 28) return -50; if (z >= -150 && z < -80) return 71;
-            if (z >= -80 && z < 70) return 71 - (((z - (-80)) / 150) * 71); if (z >= 70 && z < 145) return 0;
-            if (z >= 145 && z < 185) return ((z - 145) / 40) * 9; if (z >= 185 && z < 260) return -50;
-            if (z >= 260 && z < 360) return 2.5 - (((z - 260) / 100) * 14.5); if (z >= 360 && z < 450) return -12;
-            if (z >= 450 && z < 495) return -12 + (((z - 450) / 45) * 28); return -50;
-        }
-
-        const clock = new THREE.Clock();
-        function tick() {
-            requestAnimationFrame(tick); const dt = Math.min(clock.getDelta(), 0.1);
-            let steer = 0, push = keys.w || keys.space; prevStickState = { ...stickState };
-            const gps = navigator.getGamepads();
-            if (gps && gps[0]) {
-                const gp = gps[0]; if (gp.axes && gp.axes.length >= 4) {
-                    if (Math.abs(gp.axes[0]) > 0.1) steer = gp.axes[0]; if (gp.buttons[0]?.pressed) push = true;
-                    stickState.x = gp.axes[2]; stickState.y = gp.axes[3];
-                }
-            } else {
-                if (keys.a) steer = -1; if (keys.d) steer = 1;
-                stickState.y = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0); stickState.x = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
-            }
-            chTricks(); state.rotationY -= steer * 2.6 * dt;
-            const hd = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), state.rotationY);
-            if (push && state.isGrounded && state.pushCooldown <= 0) { state.velocity.addScaledVector(hd, 15); state.pushCooldown = 0.35; }
-            if (state.pushCooldown > 0) state.pushCooldown -= dt;
-            if (state.isGrounded && state.pos.z > -80 && state.pos.z < 70) state.velocity.z += 48 * dt;
-            const f = state.isGrounded ? 0.25 : 0.04; state.velocity.x -= state.velocity.x * f * dt; state.velocity.z -= state.velocity.z * f * dt;
-            if (!state.isGrounded) state.velocity.y -= 36 * dt; state.pos.addScaledVector(state.velocity, dt);
-            const sH = getH(state.pos.x, state.pos.z);
-            if (state.pos.y <= sH) { state.pos.y = sH; state.velocity.y = 0; state.isGrounded = true; state.angleZ *= 0.1; }
-            else if (state.pos.y > sH + 0.15) state.isGrounded = false;
-            if (!state.isGrounded && Math.abs(state.angleZ) > 0.1) deck.rotation.z += state.angleZ * dt; else deck.rotation.z = 0;
-            boardGroup.position.copy(state.pos); boardGroup.rotation.y = state.rotationY;
-            document.getElementById('speed-val').innerText = Math.floor(state.velocity.length() * 2.4);
-            const cOff = new THREE.Vector3(0, 5.5, -12.0).applyAxisAngle(new THREE.Vector3(0,1,0), state.rotationY);
-            camera.position.lerp(state.pos.clone().add(cOff), 0.1); camera.lookAt(state.pos.clone().add(new THREE.Vector3(0,0.6,3)));
-            renderer.render(scene, camera);
-        }
-        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
-        tick();
-    </script>
-</body>
-</html>
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Skate 3 Mega Ramp</title><style>
+body{margin:0;overflow:hidden;background:#050508;font-family:sans-serif}
+#u{position:absolute;top:20px;left:20px;color:#fff;background:rgba(0,0,0,0.8);padding:12px;border-radius:5px;border:1px solid #0fcc}
+#t{position:absolute;bottom:40px;width:100%;text-align:center;color:#0fcc;font-size:40px;font-weight:900}
+</style><script src="https://cloudflare.com"></script></head><body>
+<div id="u"><b>MEGA RAMP v4.0</b><br>A/D: Steer | W/Space: Push<br>Arrows: Tricks | R: Reset</div><div id="t">DROP IN!</div><script>
+window.onload=()=>{
+const s=new THREE.Scene();s.background=new THREE.Color(0x0a0b10);
+const c=new THREE.PerspectiveCamera(65,window.innerWidth/window.innerHeight,0.1,2000);
+const r=new THREE.WebGLRenderer({antialias:true});r.setSize(window.innerWidth,window.innerHeight);document.body.appendChild(r.domElement);
+s.add(new THREE.AmbientLight(0xffffff,0.6));const sun=new THREE.DirectionalLight(0xffffff,1);sun.position.set(50,150,50);s.add(sun);
+const m1=new THREE.MeshBasicMaterial({color:0x22252c}),m2=new THREE.MeshBasicMaterial({color:0x2e333d}),m3=new THREE.MeshBasicMaterial({color:0x00ffcc});
+function b(w,h,d,x,y,z,rx,m){const g=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);g.position.set(x,y,z);g.rotation.x=rx;s.add(g)}
+b(45,2,60,0,70,-110,0,m1);b(45,2,160,0,35,0,0.45,m2);b(45,2,80,0,0,110,0,m1);b(45,2,40,0,4,165,-0.25,m2);b(45,0.6,2,0,9,185,0,m3);b(50,2,110,0,-5,315,0.15,m2);b(50,2,100,0,-12,410,0,m1);b(50,2,65,0,3,485,-0.75,m2);b(3000,1,3000,0,-50,0,0,m1);
+const p=new THREE.Vector3(0,72,-110),v=new THREE.Vector3(),keys={w:0,a:0,d:0,space:0,ArrowUp:0,ArrowDown:0,ArrowLeft:0,ArrowRight:0};
+let rotY=0,rotZ=0,gr=1,cool=0,stY=0,stX=0,pStY=0,pStX=0;
+const bg=new THREE.Group(),dk=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.15,3.5),new THREE.MeshBasicMaterial({color:0xe11d48}));bg.add(dk);s.add(bg);
+window.onkeydown=(e)=>{if(e.key===' ')keys.space=1;else if(e.key in keys)keys[e.key]=1;else if(e.key.toLowerCase()==='w')keys.w=1;else if(e.key.toLowerCase()==='a')keys.a=1;else if(e.key.toLowerCase()==='d')keys.d=1;else if(e.key.toLowerCase()==='r'){p.set(0,72,-110);v.set(0,0,0);rotY=0;gr=1;document.getElementById('t').innerText="DROP IN!"}};
+window.onkeyup=(e)=>{if(e.key===' ')keys.space=0;else if(e.key in keys)keys[e.key]=0;else if(e.key.toLowerCase()==='w')keys.w=0;else if(e.key.toLowerCase()==='a')keys.a=0;else if(e.key.toLowerCase()==='d')keys.d=0};
+function getH(x,z){if(Math.abs(x)>28)return -50;if(z>=-150&&z<-80)return 71;if(z>=-80&&z<70)return 71-(((z+80)/150)*71);if(z>=70&&z<145)return 0;if(z>=145&&z<185)return ((z-145)/40)*9;if(z>=185&&z<260)return -50;if(z>=260&&z<360)return 2.5-(((z-260)/100)*14.5);if(z>=360&&z<450)return -12;if(z>=450&&z<495)return -12+(((z-450)/45)*28);return -50}
+function tk(){requestAnimationFrame(tk);let cl=keys.w||keys.space,str=keys.a?-1:(keys.d?1:0);pStY=stY;pStX=stX;stY=keys.ArrowUp?-1:(keys.ArrowDown?1:0);stX=keys.ArrowLeft?-1:(keys.ArrowRight?1:0);
+if(gr){if(pStY>0.2&&stY<-0.2){v.y=16;gr=0;document.getElementById('t').innerText="OLLIE"}else if(pStX>-0.2&&stX<-0.4){v.y=13;gr=0;rotZ=32;document.getElementById('t').innerText="KICKFLIP"}else if(pStX<0.2&&stX>0.4){v.y=13;gr=0;rotZ=-32;document.getElementById('t').innerText="HEELFLIP"}}
+rotY-=str*0.04;const hd=new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0),rotY);if(cl&&gr&&cool<=0){v.addScaledVector(hd,1.5);cool=20}if(cool>0)cool--;if(gr&&p.z>-80&&p.z<70)v.z+=0.4;v.x-=v.x*(gr?0.02:0.005);v.z-=v.z*(gr?0.02:0.005);if(!gr)v.y-=0.35;p.add(v);const h=getH(p.x,p.z);if(p.y<=h){p.y=h;v.y=0;gr=1;rotZ*=0.1}else if(p.y>h+0.15)gr=0;if(!gr&&Math.abs(rotZ)>0.1)dk.rotation.z+=rotZ*0.016;else dk.rotation.z=0;bg.position.copy(p);bg.rotation.y=rotY;
+const o=new THREE.Vector3(0,5.5,-12).applyAxisAngle(new THREE.Vector3(0,1,0),rotY);c.position.lerp(p.clone().add(o),0.1);c.lookAt(p.clone().add(new THREE.Vector3(0,0.6,3)));r.render(s,c)}tk();
+window.onresize=()=>{c.aspect=window.innerWidth/window.innerHeight;c.updateProjectionMatrix();r.setSize(window.innerWidth,window.innerHeight)}};
+</script></body></html>
