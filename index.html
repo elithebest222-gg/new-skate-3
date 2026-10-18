@@ -3,338 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Skate 3 - Super Ultra Mega Ramp Prototype</title>
+    <title>Skate 3 Mega Ramp</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #050508;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none;
-        }
-        #ui {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #ffffff;
-            pointer-events: none;
-            z-index: 10;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid rgba(0, 255, 204, 0.2);
-        }
-        h1 { margin: 0 0 5px 0; font-size: 18px; letter-spacing: 1px; color: #00ffcc; }
+        body { margin: 0; overflow: hidden; background: #050508; font-family: sans-serif; user-select: none; }
+        #ui { position: absolute; top: 20px; left: 20px; color: #fff; background: rgba(0,0,0,0.85); padding: 15px; border-radius: 8px; border: 1px solid #00ffcc; z-index: 10; pointer-events: none; }
+        h1 { margin: 0 0 5px 0; font-size: 16px; color: #00ffcc; }
         .hint { font-size: 12px; color: #ccc; margin: 3px 0; }
-        #trick-display {
-            position: absolute;
-            bottom: 40px;
-            width: 100%;
-            text-align: center;
-            color: #00ffcc;
-            font-size: 46px;
-            font-weight: 900;
-            text-shadow: 0 0 15px rgba(0,255,204,0.6);
-            pointer-events: none;
-            letter-spacing: 3px;
-        }
-        #speed-om {
-            position: absolute;
-            bottom: 40px;
-            right: 40px;
-            background: rgba(0,0,0,0.8);
-            color: #fff;
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-weight: bold;
-            font-size: 20px;
-            border: 1px solid #00ffcc;
-        }
+        #trick-display { position: absolute; bottom: 40px; width: 100%; text-align: center; color: #00ffcc; font-size: 46px; font-weight: 900; text-shadow: 0 0 15px rgba(0,255,204,0.6); pointer-events: none; }
+        #speed-om { position: absolute; bottom: 40px; right: 40px; background: rgba(0,0,0,0.85); color: #fff; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 20px; border: 1px solid #00ffcc; }
     </style>
-    <!-- Use stable global library to guarantee cross-browser compatibility -->
     <script src="https://cloudflare.com"></script>
 </head>
 <body>
-
     <div id="ui">
-        <h1>SUPER ULTRA MEGA RAMP v2.0</h1>
-        <div class="hint">⌨️ STEER: A / D Keys</div>
-        <div class="hint">🛹 PUSH / ACCEL: W Key or Spacebar</div>
-        <div class="hint">🎯 FLICK TRICKS: Arrow Down then Up (Ollie) | Left / Right (Flips)</div>
-        <div class="hint">🎮 GAMEPAD: Left Stick (Steer) | A/Cross (Push) | Right Stick (Flick Tricks)</div>
-        <div class="hint">🔄 RESET: Press 'R' to respawn at the top of the tower</div>
+        <h1>SUPER ULTRA MEGA RAMP v3.0</h1>
+        <div class="hint">⌨️ STEER: A / D | PUSH: W / Spacebar</div>
+        <div class="hint">🎯 FLIP TRICKS: Keyboard Arrow Keys</div>
+        <div class="hint">🔄 RESET MAP: Press 'R' to drop in from tower</div>
     </div>
     <div id="speed-om"><span id="speed-val">0</span> MPH</div>
     <div id="trick-display">DROP IN!</div>
 
     <script>
-        // --- 1. ENGINE RUNTIME SETUP ---
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x0a0b10);
-        scene.fog = new THREE.FogExp2(0x0a0b10, 0.008);
+        const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0b10); scene.fog = new THREE.FogExp2(0x0a0b10, 0.005);
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth/window.innerHeight, 0.1, 3000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(window.innerWidth, window.innerHeight); document.body.appendChild(renderer.domElement);
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.0); sun.position.set(50, 150, 50); scene.add(sun);
 
-        // --- 2. LIGHTING ---
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-        sun.position.set(100, 200, 50);
-        scene.add(sun);
+        const m1 = new THREE.MeshBasicMaterial({ color: 0x22252c }), m2 = new THREE.MeshBasicMaterial({ color: 0x2e333d }), m3 = new THREE.MeshBasicMaterial({ color: 0x00ffcc }), m4 = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+        function bSeg(w,h,d,x,y,z,rx,mat) { const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); m.position.set(x,y,z); m.rotation.x = rx; scene.add(m); }
 
-        // --- 3. THE SUPER ULTRA MEGA RAMP MAP ---
-        const trackGroup = new THREE.Group();
-        scene.add(trackGroup);
+        bSeg(45,2,60,0,70,-110,0,m1); bSeg(45,2,160,0,35,0,0.45,m2); bSeg(45,2,80,0,0,110,0,m1); bSeg(45,2,40,0,4,165,-0.25,m2);
+        bSeg(45,0.6,2,0,9,185,0,m3); bSeg(50,2,110,0,-5,315,0.15,m2); bSeg(50,0.6,2,0,3.1,260,0,m4); bSeg(50,2,100,0,-12,410,0,m1); bSeg(50,2,65,0,3,485,-0.75,m2);
+        bSeg(3000,1,3000,0,-50,0,0, new THREE.MeshBasicMaterial({ color: 0x050608 }));
 
-        const concreteMat = new THREE.MeshStandardMaterial({ color: 0x282a32, roughness: 0.6 });
-        const neonLineMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc });
+        const state = { pos: new THREE.Vector3(0,72,-110), velocity: new THREE.Vector3(0,0,0), rotationY: 0, angleZ: 0, isGrounded: true, pushCooldown: 0 };
+        const boardGroup = new THREE.Group(), deck = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.15,3.5), new THREE.MeshBasicMaterial({ color: 0xe11d48 }));
+        const grip = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.02,1.2), new THREE.MeshBasicMaterial({ color: 0x18191c })); grip.position.set(0,0.09,0.9);
+        boardGroup.add(deck); boardGroup.add(grip); scene.add(boardGroup);
 
-        // Helper function to create procedural map sections
-        function buildSegment(w, h, d, x, y, z, rotX) {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), concreteMat);
-            mesh.position.set(x, y, z);
-            mesh.rotation.x = rotX;
-            trackGroup.add(mesh);
-            return mesh;
-        }
+        const keys = { w:0, a:0, d:0, space:0, ArrowUp:0, ArrowDown:0, ArrowLeft:0, ArrowRight:0 };
+        let stickState = { x:0, y:0 }, prevStickState = { x:0, y:0 };
+        window.addEventListener('keydown', (e) => { if(e.key===' ') keys.space=1; else if(e.key in keys) keys[e.key]=1; else if(e.key.toLowerCase()==='w') keys.w=1; else if(e.key.toLowerCase()==='a') keys.a=1; else if(e.key.toLowerCase()==='d') keys.d=1; else if(e.key.toLowerCase()==='r') respawn(); });
+        window.addEventListener('keyup', (e) => { if(e.key===' ') keys.space=0; else if(e.key in keys) keys[e.key]=0; else if(e.key.toLowerCase()==='w') keys.w=0; else if(e.key.toLowerCase()==='a') keys.a=0; else if(e.key.toLowerCase()==='d') keys.d=0; });
 
-        // Section 1: Massive Starting Drop Tower Platform
-        buildSegment(40, 2, 50, 0, 70, -100, 0);
-        
-        // Section 2: Mega Launch Drop-In Slope (The massive hill)
-        buildSegment(40, 2, 160, 0, 35, 0, 0.45); // Slanted down
-
-        // Section 3: Flat Runway Speed Zone
-        buildSegment(40, 2, 80, 0, 0, 110, 0);
-
-        // Section 4: Massive Kicker Launch Ramp
-        buildSegment(40, 2, 40, 0, 4, 165, -0.25); // Angled upward
-
-        // Section 5: The Giant Death Gap (Empty Space between Z: 185 and Z: 265)
-        // Neon edge markers for visibility
-        const edge1 = new THREE.Mesh(new THREE.BoxGeometry(42, 0.5, 2), neonLineMat);
-        edge1.position.set(0, 9, 185);
-        scene.add(edge1);
-
-        // Section 6: Landing Ramp Box
-        buildSegment(45, 2, 100, 0, -5, 310, 0.15); 
-        
-        const edge2 = new THREE.Mesh(new THREE.BoxGeometry(47, 0.5, 2), new THREE.MeshBasicMaterial({ color: 0xff0055 }));
-        edge2.position.set(0, 2.5, 260);
-        scene.add(edge2);
-
-        // Section 7: Flat Valley Run out
-        buildSegment(45, 2, 100, 0, -12, 400, 0);
-
-        // Section 8: Final Quarterpipe Wall Ramp
-        buildSegment(45, 2, 60, 0, 2, 470, -0.7);
-
-        // Ground Floor Base (In case you miss a jump)
-        const safetyFloor = new THREE.Mesh(new THREE.BoxGeometry(2000, 1, 2000), new THREE.MeshStandardMaterial({ color: 0x111215 }));
-        safetyFloor.position.y = -40;
-        scene.add(safetyFloor);
-
-        // --- 4. RIDE MOMENTUM ENGINE ---
-        const state = {
-            pos: new THREE.Vector3(0, 72, -100), // Start right on top of the tower
-            velocity: new THREE.Vector3(0, 0, 0),
-            rotationY: 0,
-            angleZ: 0,
-            isGrounded: true,
-            pushCooldown: 0
-        };
-
-        // --- 5. VISUAL SKATEBOARD ---
-        const boardGroup = new THREE.Group();
-        const deck = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 3.4), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.2 }));
-        boardGroup.add(deck);
-        
-        // Grip tape stripe
-        const grip = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.02, 1.0), new THREE.MeshStandardMaterial({ color: 0x1c1e22 }));
-        grip.position.set(0, 0.09, 0.9);
-        boardGroup.add(grip);
-        scene.add(boardGroup);
-
-        // --- 6. CONTROLS CONFIGURATION ---
-        const keys = { w: false, a: false, d: false, space: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-        let stickState = { x: 0, y: 0 };
-        let prevStickState = { x: 0, y: 0 };
-
-        window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'w') keys.w = true;
-            if (e.key.toLowerCase() === 'a') keys.a = true;
-            if (e.key.toLowerCase() === 'd') keys.d = true;
-            if (e.key === ' ' || e.code === 'Space') keys.space = true;
-            if (e.key in keys) keys[e.key] = true;
-            if (e.key.toLowerCase() === 'r') respawn();
-        });
-
-        window.addEventListener('keyup', (e) => {
-            if (e.key.toLowerCase() === 'w') keys.w = false;
-            if (e.key.toLowerCase() === 'a') keys.a = false;
-            if (e.key.toLowerCase() === 'd') keys.d = false;
-            if (e.key === ' ' || e.code === 'Space') keys.space = false;
-            if (e.key in keys) keys[e.key] = false;
-        });
-
-        function respawn() {
-            state.pos.set(0, 72, -100);
-            state.velocity.set(0, 0, 0);
-            state.rotationY = 0;
-            state.isGrounded = true;
-            document.getElementById('trick-display').innerText = "DROP IN!";
-        }
-
-        // --- 7. FLICK TRICK PATTERNS ---
-        function processTricks() {
+        function respawn() { state.pos.set(0,72,-110); state.velocity.set(0,0,0); state.rotationY=0; state.isGrounded=true; document.getElementById('trick-display').innerText="DROP IN!"; }
+        function chTricks() {
             if (!state.isGrounded) return;
-            if (prevStickState.y > 0.3 && stickState.y < -0.3) {
-                state.velocity.y = 15; // Insane vertical height launch
-                state.isGrounded = false;
-                document.getElementById('trick-display').innerText = "MEGA OLLIE";
-            } else if (prevStickState.x > -0.2 && stickState.x < -0.5) {
-                state.velocity.y = 12;
-                state.isGrounded = false;
-                state.angleZ = 30;
-                document.getElementById('trick-display').innerText = "KICKFLIP";
-            } else if (prevStickState.x < 0.2 && stickState.x > 0.5) {
-                state.velocity.y = 12;
-                state.isGrounded = false;
-                state.angleZ = -30;
-                document.getElementById('trick-display').innerText = "HEELFLIP";
-            }
+            if (prevStickState.y > 0.25 && stickState.y < -0.25) { state.velocity.y = 16; state.isGrounded = false; document.getElementById('trick-display').innerText = "MEGA OLLIE"; }
+            else if (prevStickState.x > -0.2 && stickState.x < -0.5) { state.velocity.y = 13; state.isGrounded = false; state.angleZ = 32; document.getElementById('trick-display').innerText = "KICKFLIP"; }
+            else if (prevStickState.x < 0.2 && stickState.x > 0.5) { state.velocity.y = 13; state.isGrounded = false; state.angleZ = -32; document.getElementById('trick-display').innerText = "HEELFLIP"; }
         }
 
-        // --- 8. HEIGHT MAP CALCULATIONS ---
-        function getMapHeight(x, z) {
-            // Out of horizontal bounds -> Falling off the track sides
-            if (Math.abs(x) > 25) return -40; 
-
-            // Tower
-            if (z >= -130 && z < -75) return 71;
-
-            // Big Drop Hill
-            if (z >= -75 && z < 70) {
-                const pct = (z - (-75)) / 145;
-                return 71 - (pct * 71); 
-            }
-
-            // Flat Runway
-            if (z >= 70 && z < 145) return 0;
-
-            // Kicker Launch Ramp
-            if (z >= 145 && z < 185) {
-                const pct = (z - 145) / 40;
-                return pct * 9; 
-            }
-
-            // Mega Gap Void
-            if (z >= 185 && z < 260) return -40;
-
-            // Landing Ramp Down slope
-            if (z >= 260 && z < 350) {
-                const pct = (z - 260) / 90;
-                return 2.5 - (pct * 14.5);
-            }
-
-            // Bottom Flat Run-out
-            if (z >= 350 && z < 440) return -12;
-
-            // Final Quarterpipe wall incline
-            if (z >= 440 && z < 480) {
-                const pct = (z - 440) / 40;
-                return -12 + (pct * 25);
-            }
-
-            return -40;
+        function getH(x, z) {
+            if (Math.abs(x) > 28) return -50; if (z >= -150 && z < -80) return 71;
+            if (z >= -80 && z < 70) return 71 - (((z - (-80)) / 150) * 71); if (z >= 70 && z < 145) return 0;
+            if (z >= 145 && z < 185) return ((z - 145) / 40) * 9; if (z >= 185 && z < 260) return -50;
+            if (z >= 260 && z < 360) return 2.5 - (((z - 260) / 100) * 14.5); if (z >= 360 && z < 450) return -12;
+            if (z >= 450 && z < 495) return -12 + (((z - 450) / 45) * 28); return -50;
         }
 
-        // --- 9. FRAME UPDATE TICK ENGINE ---
         const clock = new THREE.Clock();
-
         function tick() {
-            requestAnimationFrame(tick);
-            const dt = Math.min(clock.getDelta(), 0.1);
-
-            let steering = 0;
-let pushing = keys.w || keys.space;
-prevStickState = { ...stickState };
-// FIXED: Safely fetch individual indices from the Gamepad array
-const gamepads = navigator.getGamepads();
-if (gamepads && gamepads[0]) {
-const gp = gamepads[0];
-if (gp.axes && gp.axes.length >= 4) {
-if (Math.abs(gp.axes[0]) > 0.1) steering = gp.axes[0];
-if (gp.buttons && gp.buttons[0] && gp.buttons[0].pressed) pushing = true;
-stickState.x = gp.axes[2];
-stickState.y = gp.axes[3];
-}
-} else {
-if (keys.a) steering = -1;
-if (keys.d) steering = 1;
-stickState.y = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0);
-stickState.x = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
-}
-processTricks();
-// Turning Configuration
-state.rotationY -= steering * 2.5 * dt;
-const heading = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.rotationY);
-// Manual Acceleration Force
-if (pushing && state.isGrounded && state.pushCooldown <= 0) {
-state.velocity.addScaledVector(heading, 14);
-state.pushCooldown = 0.35;
-}
-if (state.pushCooldown > 0) state.pushCooldown -= dt;
-// Natural gravity pull based on map incline slope profile
-if (state.isGrounded && state.pos.z > -75 && state.pos.z < 70) {
-// Accelerate downhill rapidly for massive speed
-state.velocity.z += 45 * dt;
-}
-// Air friction vs ground friction profile
-const activeFriction = state.isGrounded ? 0.3 : 0.05;
-state.velocity.x -= state.velocity.x * activeFriction * dt;
-state.velocity.z -= state.velocity.z * activeFriction * dt;
-if (!state.isGrounded) {
-state.velocity.y -= 35 * dt; // Heavy gravity for rapid vertical falling
-}
-state.pos.addScaledVector(state.velocity, dt);
-// Match current map surface coordinates
-const surfaceH = getMapHeight(state.pos.x, state.pos.z);
-if (state.pos.y <= surfaceH) {
-state.pos.y = surfaceH;
-state.velocity.y = 0;
-state.isGrounded = true;
-state.angleZ *= 0.1;
-} else {
-if (state.pos.y > surfaceH + 0.1) state.isGrounded = false;
-}
-// Handle trick flip graphic updates
-if (!state.isGrounded) {
-if (Math.abs(state.angleZ) > 0.1) deck.rotation.z += state.angleZ * dt;
-} else {
-deck.rotation.z = 0;
-}
-// Sync visual spatial positions
-boardGroup.position.copy(state.pos);
-boardGroup.rotation.y = state.rotationY;
-// Update Realtime Speedometer Value Displays
-const speedMph = Math.floor(state.velocity.length() * 2.5);
-document.getElementById('speed-val').innerText = speedMph;
-// --- LOOSE THIRD PERSON CAM CHASE ---
-const offset = new THREE.Vector3(0, 5.0, -11.0).applyAxisAngle(new THREE.Vector3(0, 1, 0), state.rotationY);
-const targetCam = state.pos.clone().add(offset);
-camera.position.lerp(targetCam, 0.1);
-camera.lookAt(state.pos.clone().add(new THREE.Vector3(0, 0.5, 2)));
-renderer.render(scene, camera);
-}
-window.addEventListener('resize', () => {
-camera.aspect = window.innerWidth / window.innerHeight;
-camera.updateProjectionMatrix();
-renderer.setSize(window.innerWidth, window.innerHeight);
-});
-tick();
-
-
+            requestAnimationFrame(tick); const dt = Math.min(clock.getDelta(), 0.1);
+            let steer = 0, push = keys.w || keys.space; prevStickState = { ...stickState };
+            const gps = navigator.getGamepads();
+            if (gps && gps[0]) {
+                const gp = gps[0]; if (gp.axes && gp.axes.length >= 4) {
+                    if (Math.abs(gp.axes[0]) > 0.1) steer = gp.axes[0]; if (gp.buttons[0]?.pressed) push = true;
+                    stickState.x = gp.axes[2]; stickState.y = gp.axes[3];
+                }
+            } else {
+                if (keys.a) steer = -1; if (keys.d) steer = 1;
+                stickState.y = keys.ArrowUp ? -1 : (keys.ArrowDown ? 1 : 0); stickState.x = keys.ArrowLeft ? -1 : (keys.ArrowRight ? 1 : 0);
+            }
+            chTricks(); state.rotationY -= steer * 2.6 * dt;
+            const hd = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), state.rotationY);
+            if (push && state.isGrounded && state.pushCooldown <= 0) { state.velocity.addScaledVector(hd, 15); state.pushCooldown = 0.35; }
+            if (state.pushCooldown > 0) state.pushCooldown -= dt;
+            if (state.isGrounded && state.pos.z > -80 && state.pos.z < 70) state.velocity.z += 48 * dt;
+            const f = state.isGrounded ? 0.25 : 0.04; state.velocity.x -= state.velocity.x * f * dt; state.velocity.z -= state.velocity.z * f * dt;
+            if (!state.isGrounded) state.velocity.y -= 36 * dt; state.pos.addScaledVector(state.velocity, dt);
+            const sH = getH(state.pos.x, state.pos.z);
+            if (state.pos.y <= sH) { state.pos.y = sH; state.velocity.y = 0; state.isGrounded = true; state.angleZ *= 0.1; }
+            else if (state.pos.y > sH + 0.15) state.isGrounded = false;
+            if (!state.isGrounded && Math.abs(state.angleZ) > 0.1) deck.rotation.z += state.angleZ * dt; else deck.rotation.z = 0;
+            boardGroup.position.copy(state.pos); boardGroup.rotation.y = state.rotationY;
+            document.getElementById('speed-val').innerText = Math.floor(state.velocity.length() * 2.4);
+            const cOff = new THREE.Vector3(0, 5.5, -12.0).applyAxisAngle(new THREE.Vector3(0,1,0), state.rotationY);
+            camera.position.lerp(state.pos.clone().add(cOff), 0.1); camera.lookAt(state.pos.clone().add(new THREE.Vector3(0,0.6,3)));
+            renderer.render(scene, camera);
+        }
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+        tick();
+    </script>
+</body>
+</html>
